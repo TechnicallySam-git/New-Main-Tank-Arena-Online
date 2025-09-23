@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            background: #303030 url("camo-pat.jpg") no-repeat center center fixed;
+            margin: 0;
+            min-height: 100vh;
+            justify-content: center;
+            align-items: center;
+
+        }
+        canvas {
+            display: block;
+            margin: 0;  
+            outline: 10px solid rgb(0, 0, 0);
+            color: wheat;
+        }
+        .menu-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .menu-box {
+            background: #444;
+            padding: 20px 40px;
+            border-radius: 8px;
+            color: white;
+            text-align: center;
+        }
+        .menu-box input, .menu-box select {
+            margin: 10px 0;
+            padding: 8px;
+            width: 180px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .menu-box label {
+            display: block;
+            margin-top: 10px;
+            margin-bottom: 4px;
+        }
+        .menu-box button {
+            display: block;
+            margin-top: 10px;
+            padding: 10px 20px;
+            background: #28a745;
+            border: none;
+            border-radius: 4px;
+            color: white;
+            cursor: pointer;
+            margin: auto;
+        }
+        .menu-box button:hover {
+            background: #218838;
+        }
+        #chatContainer, #leaderboardContainer {
+            background-color: #444;
+            color: #ccc;
+            padding: 8px;
+            border-radius: 6px;
+            margin-bottom: 4px;
+            font-size: 15px;
+        }
+        #chatMessages {
+            flex: 1;
+            overflow: auto;
+        }
+        #leaderboardTitle {
+            background: #333;
+            color: #fff;
+            padding: 8px;
+            border-radius: 6px 6px 0 0;
+            font-size: 18px;
+            text-align: center;
+        }
+        #leaderboard {
+            flex: 1;
+            overflow: auto;
+            background-color: #222;
+            color: #ffd700;
+            padding: 8px;
+            border-radius: 0 0 6px 6px;
+            font-size: 15px;
+        }
+    </style>
+</head>
+<body>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <img src="Picture1.png" alt="Tank Arena Online" style="max-width: 30%; height: 30%; display:block;margin:32px auto;">
+
+    
+    <div class="menu-overlay" id="menuOverlay">
+        <div class="menu-box">
+            <h2>Login or Sign up</h2>
+            <form>
+                <label for="username">Username:</label>
+                <input type="text" id="username" placeholder="Enter your username" autocomplete="username">
+                <label for="password">Password:</label>
+                <input type="password" id="password" placeholder="Enter your password" autocomplete="current-password">
+                <button id="loginButton" style="margin-top: 10px;">Login</button>
+            </form>
+        </div>
+    </div>
+    <div class="menu-overlay" id="colorOverlay" style="display:none;">
+        <div class="menu-box">
+            <h2>Select Your Tank Color</h2>
+            <form id ="colorForm">
+                <label for="tankColor">Tank Color:</label>
+                <select id="tankColor">
+                    <option value="green">Green</option>
+                    <option value="blue">Blue</option>
+                    <option value="red">Red</option>
+                    <option value="yellow">Yellow</option>
+                    <option value="purple">Purple</option>
+                    <option value="orange">Orange</option>
+                    <option value="black">Black</option>
+                    <option value="white">White</option>
+                    <option value="pink">Pink</option>
+                </select>
+                <button id="colorSelectButton" style="margin-top: 10px;">Select Color</button>
+            </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="matchTimer" style="
+                width: 200px;
+                margin: 10px auto 0 auto;
+                background: #222;
+                color: aliceblue;
+                border-radius: 8px;
+                text-align: center;
+                font-size: 20px;
+                padding: 6px 0;
+                font-family: Arial, sans-serif;">
+                Time Left: 06:00
+            </div>
+
+
+
+    <div style="display: flex; justify-content: center; align-items: flex-start; width: 100vw; margin-top: 24px;">
+        <div style="display: flex; flex-direction: row; align-items: flex-start;">
+            <!-- Chat box, fixed width, hugs canvas -->
+            <div id="chatContainer" style="width:250px; height:600px; display:flex; flex-direction:column;">
+                <div id="chatMessages" style="flex:1; overflow:auto; background-color:#444; color:#ccc; padding:8px; border-radius:6px; margin-bottom:4px; font-size:15px;"></div>
+                <input id="chatInput" type="text" placeholder="Type a message..." style="width:100%; padding:8px; border-radius:6px; border:none; outline:none; font-size:15px;">
+            </div>
+
+            
+
+            <!-- Canvas in the center -->
+            <canvas id="GameCanvas" width="1200" height="600"></canvas>
+            
+            <!-- Leaderboard box, fixed width, hugs canvas on the right -->
+            <div id="leaderboardContainer" style="width:250px; height:600px; display:flex; flex-direction:column; margin-left:0;">
+                <div id="leaderboardTitle" style="background:#333; color:#fff; padding:8px; border-radius:6px 6px 0 0; font-size:18px; text-align:center;">Leaderboard</div>
+                <div id="leaderboard" style="flex:1; overflow:auto; background-color:#222; color:#ffd700; padding:8px; border-radius:0 0 6px 6px; font-size:15px;"></div>
+            </div>
+        </div>
+    </div>
+<div id="enemyHealthBars" style="
+width: 380px;
+height: 22px;
+margin: 16px auto 0 auto;
+background: #222;
+border-radius: 8px;
+border: 2px solid #000;
+position: relative;
+display :flex;
+justify-content: center;
+font-family: Arial, sans-serif;
+font-size: 15px;
+color: white;
+text-align: center;
+top:0; 
+left:0; 
+pointer-events:none;">
+    <div id="playerHealthFill" style="
+    height: 100%;
+    background: red;
+    border-radius: 8px 0 0 8px;
+    transition: width 0.2s;
+    "></div>
+    <span id="playerHealthText" style="
+    position: absolute;
+    width: 100%;
+    text-align: center;
+    z-index: 2;
+    pointer-events: none;">Health: 100 / 100</span>
+
+</div>
+<div id="gameOverPopup" style="
+        display:none;
+        position:fixed;
+        top:50%;
+        left:50%;
+        transform:translate(-50%, -50%);
+        background-color:#333;
+        color:white;
+        padding:20px;
+        border-radius:8px;
+        text-align:center;
+        z-index:1001;"
+        >Your Tank Has Been Destroyed!
+    </div>
+
+
+    <script>
+        const socket = io('http://localhost:5000');
+        let matchDuration = 6 * 60; // 6 minutes in seconds
+        let matchTimeLeft = matchDuration;
+        let matchEnded = false;
+        let all_players = {};
+        let all_bullets = [];
+        let all_explosions = [];
+
+        var canvas = document.getElementById("GameCanvas");
+        var ctx = canvas.getContext("2d");
+        ctx.fillStyle = "wheat";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        let lastFrameTime = performance.now();
+
+        var menuForm = document.querySelector('.menu-box form');
+        menuForm.addEventListener('submit', function(event) {
+            event.preventDefault();
+            var username = document.getElementById('username').value;
+            playerUsername = username;
+            var password = document.getElementById('password').value;
+            playerPassword = password;
+            if(username && password) {
+                document.getElementById('menuOverlay').style.display = 'none';
+                document.getElementById('colorOverlay').style.display = 'flex';
+                ctx.fillStyle = "wheat";
+                ctx.font = "20px Arial";
+                alert('Welcome, ' + username + '!');
+            } else {
+                alert('Please enter both username and password.');
+            }
+        });
+        
+        var colorForm = document.getElementById('colorForm');
+        
+        colorForm.addEventListener('submit', function(event) {
+            event.preventDefault();
+            var selectedColor = document.getElementById('tankColor').value;
+            document.getElementById('colorOverlay').style.display = 'none';
+            tank.color = selectedColor;
+            playerColor = selectedColor;
+            socket.emit('join', {username: playerUsername, color: playerColor});
+            //spawnCrates();
+            
+        });
+        function getDarkColor(color) {
+            switch (color) {
+                case "green": return "#145214";
+                case "blue": return "#003366";
+                case "red": return "#800000";
+                case "yellow": return "#ccda00";
+                case "purple": return "#4b006e";
+                case "orange": return "#a65c00";
+                case "black": return "#222";
+                case "white": return "#aaa";
+                case "pink": return "#b30059";
+                default: return "#333";
+            }
+        }
+        function chatFocus() {
+            return document.activeElement === document.getElementById('chatInput');
+        }
+
+        
+        
+        let gameStarted = false;
+        
+
+        function gameLoop() {
+            let now = performance.now();
+            let delta = (now - lastFrameTime) / 1000;
+            lastFrameTime = now;
+
+            
+
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "wheat";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            updateTank(delta);
+            //updateBullets(delta);
+            // drawTank();
+            drawAllPlayers();
+            drawBullets();
+            updateMatchTimer();
+
+            if (matchEnded) return;
+
+            updatePlayerHealthBar();
+            drawExplosions();
+            drawCrates();
+            requestAnimationFrame(gameLoop);
+
+        }
+
+        const GRID_COLS = 24;
+        const GRID_ROWS = 12;
+        const CRATE_SIZE = 50;
+        const CRATE_COUNT = 50;
+        //let crates = [];
+        let all_crates = [];
+
+        const cellWidth = canvas.width / GRID_COLS;
+        const cellHeight = canvas.height / GRID_ROWS;
+
+        var tank = {
+            health: 100,
+            maxHealth: 100,
+            width: 42,
+            height: 25,
+            x: Math.random() * (canvas.width - 42) + 21,  
+            y: Math.random() * (canvas.height - 25) + 12.5, 
+            color: "green", // will update after color selection
+            turretAngle: 0,
+            bodyAngle: 0,
+            kills: 0
+        }
+
+        //var bullets = [];
+
+        var keysPressed = {};
+
+        var explodingIMG = new Image();
+        explodingIMG.src = "explosion.png";
+
+        var explosion = [];
+
+        //Listen for all players and bullets data from server
+        
+
+        // Receive game state updates from server
+        let myID = null;
+        socket.on('connect', function() {
+            myID = socket.id;
+            console.log('Connected to server with ID:', myID);
+        });
+
+        let playerUsername = "Player"; // will update after login
+        let playerColor = "green"; // will update after color selection
+
+        
+
+        socket.on('game_state', function(data) {
+            all_players = data.players;
+            all_bullets = data.bullets || [];
+            all_crates = data.crates || [];
+            all_explosions = data.explosions || [];
+            matchTimeLeft = data.match_time_left || 0; // <-- use this everywhere
+
+            if (!gameStarted && all_players && socket.id && all_players[socket.id]) {
+                gameStarted = true;
+                gameLoop();
+            }
+
+            if (all_players && socket.id && all_players[socket.id]) {
+                Object.assign(tank, all_players[socket.id]);
+            }
+        });
+
+
+        socket.on('match_ended', function(data) {
+           showGameOver(
+            'Match Over! Winner: ' + data.winner + ' with ' + data.kills + ' kills.<br>'
+           + 'Your Kills:' + (tank.kills || 0), true);
+        // countdown code
+           let countdown = 5;
+           var countdownSpan = document.getElementById('restartCountdown');
+           if (countdownSpan) countdownSpan.textContent = 'Restarting in ' + (countdown + '...');
+
+           var interval = setInterval(function() {
+                countdown--;
+                if (countdownSpan) countdownSpan.textContent = 'Restarting in ' + (countdown + '...');
+                if (countdown <= 0) {
+                    clearInterval(interval);
+                    socket.emit('new_match');
+                    countdownSpan.textContent = '';
+                    document.getElementById('gameOverPopup').style.display = 'none';
+                }
+           }, 1000);
+        });
+
+    function showGameOver(message, showCountdown) {
+        var popup = document.getElementById('gameOverPopup');
+        if (showCountdown) {
+            popup.innerHTML = message + '<br><span id="restartCountdown"></span>';
+        } else {
+            popup.innerHTML = message;
+        }
+        popup.style.display = 'block';
+    }
+
+
+
+        
+        socket.on('tank_destroyed', function(data) {
+            if (data['tank_id'] != socket.id) return;
+            
+        });
+        function sendMove(x,y,bodyAngle,turretAngle) {
+            socket.emit('move', {x: x, y: y, bodyAngle, turretAngle});
+        }
+
+        function sendShoot(bulletData) {
+            socket.emit('shoot', bulletData);
+        }
+
+        function drawAllPlayers() {
+            for (let id in all_players) {
+                let t = all_players[id];
+                ctx.save();
+                ctx.translate(t.x, t.y);
+                ctx.rotate(t.bodyAngle);
+                ctx.fillStyle = t.color || "green";
+                ctx.fillRect(-t.width / 2, -t.height / 2, t.width, t.height);
+                ctx.rotate(t.turretAngle - t.bodyAngle);
+                ctx.fillStyle = getDarkColor(t.color);
+                ctx.fillRect(0, -2.5, t.height / 1.5, 5);
+                ctx.beginPath();
+                ctx.arc(0, 0, t.height / 4, 0, Math.PI * 2);
+                ctx.fillStyle = getDarkColor(t.color);
+                ctx.fill();
+                ctx.restore();
+
+                if (id !== socket.id && t.playerUsername) {
+                    ctx.save();
+                    ctx.font = "14px Arial";
+                    ctx.fillStyle = "black";
+                    ctx.textAlign = "center";
+                    ctx.fillText(t.playerUsername, t.x + 2, t.y - t.height / 2 - 25 + 2);
+                    ctx.restore();  
+                }
+
+                if (id !== socket.id) {
+                    const barWidth = 60;
+                    const barHeight = 6;
+                    const x = t.x - barWidth / 2;
+                    const y = t.y - t.height / 2 - 18;
+
+                    ctx.fillStyle = "#444";
+                    ctx.fillRect(x, y, barWidth, barHeight);
+
+                    const healthPercent = Math.max(0, t.health) / t.maxHealth;
+                    ctx.fillStyle = healthPercent > 0.5 ? "#0f0" : healthPercent > 0.2 ? "#ff0" : "#f00";
+                    ctx.fillRect(x, y, barWidth * healthPercent, barHeight);
+
+                    ctx.strokeStyle = "#000";
+                    ctx.strokeRect(x, y, barWidth, barHeight);
+               }
+            }
+        }
+
+
+        document.addEventListener('keydown', function(event) {
+            if (document.activeElement === document.getElementById('chatInput')) return;
+        const key = event.key.toLowerCase();
+        keysPressed[key] = true;
+        
+        if (key == ' ' && !keysPressed['__spaceFired']) {
+            keysPressed['__spaceFired'] = true;
+            sendShoot({
+                x: tank.x + (tank.width / 2) * Math.cos(tank.turretAngle),
+                y: tank.y + (tank.width / 2) * Math.sin(tank.turretAngle),
+                angle: tank.turretAngle,
+                speed: 5,
+                bounces: 0,
+                crateBounces: 0
+            });
+            }
+        }
+        );
+
+        document.addEventListener('keyup', function(event) {
+            const key = event.key.toLowerCase();
+            keysPressed[key] = false;
+            if (key == ' ') keysPressed['__spaceFired'] = false;
+        });
+
+
+
+        document.addEventListener('mousemove', function(event) {
+            var rect = document.getElementById("GameCanvas").getBoundingClientRect();
+            var mouseX = event.clientX - rect.left;
+            var mouseY = event.clientY - rect.top;
+            tank.turretAngle = Math.atan2(mouseY - tank.y, mouseX - tank.x);
+        });
+
+        canvas.addEventListener("mousedown", function(event) {
+            if (document.activeElement === document.getElementById('chatInput')) return;
+            sendShoot({
+                x: tank.x + (tank.width / 2) * Math.cos(tank.turretAngle),
+                y: tank.y + (tank.width / 2) * Math.sin(tank.turretAngle),
+                angle: tank.turretAngle,
+                speed: 5,
+                bounces: 0,
+                crateBounces: 0
+            });
+        });
+
+
+
+
+        function updateTank(delta) {
+            var speed = 125;
+            let tankX = 0, tankY = 0;
+            if (keysPressed['w'] || keysPressed['w']) {
+                tankY -= speed;
+            }
+            if (keysPressed['s'] || keysPressed['s']) {
+                tankY += speed;
+            }
+            if (keysPressed['a'] || keysPressed['a']) {
+                tankX -= speed;
+            }
+            if (keysPressed['d'] || keysPressed['d']) {
+                tankX += speed;
+
+            }
+
+            // Calculate new position for collision detection
+            if (tankX !== 0 || tankY !== 0) {
+                tank.bodyAngle = Math.atan2(tankY, tankX);
+                var len = Math.hypot(tankX, tankY);
+                tankX /= len;
+                tankY /= len;
+
+                let newX = tank.x + tankX * speed * delta;
+                let newY = tank.y + tankY * speed * delta;
+                // Collision with crates
+                let blocked = all_crates.some(crate => {
+                    return (
+                        Math.abs(newX - crate.x) < (CRATE_SIZE / 2 + tank.width / 2) &&
+                        Math.abs(newY - crate.y) < (CRATE_SIZE / 2 + tank.height / 2)
+                    );
+                });
+
+                if (!blocked) {
+                    tank.x = newX;
+                    tank.y = newY;
+                    tank.bodyAngle = Math.atan2(tankY, tankX);
+                }
+            }
+
+            // Boundary check
+            tank.x = Math.max(tank.width / 2, Math.min(canvas.width - tank.width / 2, tank.x));
+            tank.y = Math.max(tank.height / 2, Math.min(canvas.height - tank.height / 2, tank.y));
+            sendMove(tank.x, tank.y, tank.bodyAngle, tank.turretAngle);
+        }
+        
+        function updateMatchTimer() {
+            let minutes = Math.floor(matchTimeLeft / 60);
+            let seconds = Math.floor(matchTimeLeft % 60);
+            document.getElementById('matchTimer').innerText =
+                "Time Left: " + minutes.toString().padStart(2, '0') + ":" + seconds.toString().padStart(2, '0');
+        }
+
+        function drawEnemyHealthBar(enemy) {
+            var barWidth = 60;
+            var barHeight = 6;
+            var x = enemy.x - barWidth / 2;
+            var y = enemy.y - enemy.height / 2 - 18;
+
+            ctx.fillStyle = "#222";
+            ctx.fillRect(x, y, barWidth, barHeight);
+
+            ctx.fillStyle = "#f00";
+            ctx.fillRect(x, y, barWidth * (enemy.health / enemy.maxHealth), barHeight);
+
+            ctx.strokeStyle = "#000";
+            ctx.strokeRect(x, y, barWidth, barHeight);
+        } 
+
+
+        function drawBullets() {
+            ctx.fillStyle = "#caa51f";
+            all_bullets.forEach(function(b) {
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, 5, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+        function drawExplosions() {
+            all_explosions.forEach(e => {
+                let now = performance.now();
+                let size = 50;
+                if (now - e.startTime < 600) {
+                    var x =  Math.max(size/2, Math.min(canvas.width - size/2, e.x));
+                    var y =  Math.max(size/2, Math.min(canvas.height - size/2, e.y));
+                    ctx.drawImage(explodingIMG, x - size/2, y - size/2, size, size);
+                }
+            });
+        }
+            
+    function drawCrates() {
+        if (!all_crates) return;
+        ctx.fillStyle = "#8B4513";
+        ctx.strokeStyle = "#654321";
+        all_crates.forEach(crate => {
+            ctx.fillRect(crate.x - CRATE_SIZE/2, crate.y - CRATE_SIZE/2, CRATE_SIZE, CRATE_SIZE);
+            ctx.strokeRect(crate.x - CRATE_SIZE/2, crate.y - CRATE_SIZE/2, CRATE_SIZE, CRATE_SIZE);
+        });
+    }
+    function updatePlayerHealthBar() {
+    var percent = Math.max(0, tank.health) / tank.maxHealth;
+    var bar = document.getElementById('playerHealthFill');
+    var text = document.getElementById('playerHealthText');
+    bar.style.width = (percent * 100) + '%';
+    text.textContent = 'Health: ' + Math.max(0, tank.health) + ' / ' + tank.maxHealth;
+    }
+
+
+
+    
+    
+
+    document.getElementById('chatInput').addEventListener('keydown', function(event) {
+        if (event.key === 'Enter'&& this.value.trim() !== '') {
+            const msg = this.value.trim();
+            const chatmessage = document.getElementById('chatMessages');
+            //add message to chat box
+            const msgDiv = document.createElement('div');
+            msgDiv.textContent = msg;
+            chatmessage.appendChild(msgDiv);
+            chatmessage.scrollTop = chatmessage.scrollHeight;
+            this.value = '';
+        }
+    }
+);
+
+
+    </script>
+</body>
+
+
+</html>
