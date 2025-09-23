@@ -12,6 +12,7 @@ bullets = []
 last_shot_time = {}
 crates = []
 explosions = []  # New list to track explosions
+chat_history = []  # List to store chat messages
 
 match_start_time = time.time()
 match_running = True
@@ -38,7 +39,17 @@ def game_loop():
         if match_time_left == 0:
             if not match_ended_emmited:
                 match_running = False
-                socketio.emit('match_ended', {'message': 'Match has ended!'})
+                winner_id = max(players, key=lambda pid: players[pid]['kills']) if players else None
+                winner_name = players[winner_id]['playerUsername'] if winner_id else "No one"
+                winner_kills = players[winner_id]['kills'] if winner_id else 0
+                socketio.emit('match_ended', {
+                    'message': 'Match has ended!',
+                    'winner': {
+                        'id': winner_id,
+                        'name': winner_name,
+                        'kills': winner_kills
+                    }
+                })
                 match_ended_emmited = True
         else:
             match_running = True
@@ -197,6 +208,7 @@ def join(data):
         'turretAngle': 0
     }
     emit('all_players', players, broadcast=True)
+    emit('chat_history', chat_history, broadcast=True)
 
 @socketio.on('move')
 def move(data):
@@ -242,7 +254,16 @@ def new_match():
     print("New match started.")
 
 
-@socketio.on('force_end')
+@socketio.on('chat_message')
+def handle_chat(data):
+    message = data.get('message', '')
+    username = players.get(request.sid, {}).get('playerUsername', 'Player')
+    chat_entry = {'username': username, 'message': message}
+    chat_history.append(chat_entry)
+    emit('chat_message', {'username': username, 'message': message}, broadcast=True)
+
+
+@socketio.on('force_end') # For testing purposes do not use if ur not admin!!!!
 def force_end():
     global match_start_time
     match_start_time = time.time() - 299  # Forces timer to 0

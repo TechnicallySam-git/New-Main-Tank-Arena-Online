@@ -378,6 +378,24 @@ pointer-events:none;">
             }
         });
 
+        socket.on('chat_message', function(data) {
+            const chatMessages = document.getElementById('chatMessages');
+            const msgDiv = document.createElement('div');
+            msgDiv.innerHTML = '<strong>' + data.username + ':</strong> ' + data.message;
+            chatMessages.appendChild(msgDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        });
+
+        socket.on('chat_history', function(history) {
+            const chatMessages = document.getElementById('chatMessages');
+            chatMessages.innerHTML = '';
+            history.forEach(entry => {
+                const msgDiv = document.createElement('div');
+                msgDiv.innerHTML = '<strong>' + entry.username + ':</strong> ' + entry.message;
+                chatMessages.appendChild(msgDiv);
+            });
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        });
 
         socket.on('match_ended', function(data) {
            showGameOver(
@@ -636,17 +654,29 @@ pointer-events:none;">
     document.getElementById('chatInput').addEventListener('keydown', function(event) {
         if (event.key === 'Enter'&& this.value.trim() !== '') {
             const msg = this.value.trim();
-            const chatmessage = document.getElementById('chatMessages');
-            //add message to chat box
-            const msgDiv = document.createElement('div');
-            msgDiv.textContent = msg;
-            chatmessage.appendChild(msgDiv);
-            chatmessage.scrollTop = chatmessage.scrollHeight;
+            socket.emit('chat_message', {message: msg});
             this.value = '';
         }
     }
 );
+    socket.on('leaderboard', function(leaderboard) {
+        let leaderboardArr = []
+        for (let id in leaderboard) {
+            let player =  all_players[id];
+            if (player) {
+                leaderboardArr.push({
+                    username: player.playerUsername || "Player", kills: leaderboard[id] || 0
+                });
+            }
+        }
+        leaderboardArr.sort((a,b) => b.kills - a.kills);
 
+        let leaderboardDiv = document.getElementById('leaderboard');
+        leaderboardDiv.innerHTML = '';
+        leaderboardArr.forEach((entry,idx) => {
+            leaderboardDiv.innerHTML += `<div>${idx + 1}. ${entry.username}: ${entry.kills} kills</div>`;
+        });
+    });
 
     </script>
 </body>
