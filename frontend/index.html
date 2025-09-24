@@ -399,8 +399,8 @@ pointer-events:none;">
 
         socket.on('match_ended', function(data) {
            showGameOver(
-            'Match Over! Winner: ' + data.winner + ' with ' + data.kills + ' kills.<br>'
-           + 'Your Kills:' + (tank.kills || 0), true);
+            `Match Over! Winner: ${data.winner} with ${data.kills} kills.<br>`
+           + `Your Kills: ${tank.kills || 0}`, true);
         // countdown code
            let countdown = 5;
            var countdownSpan = document.getElementById('restartCountdown');

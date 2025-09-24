@@ -7,7 +7,7 @@ import random
 app = Flask(__name__, static_folder='../frontend', static_url_path='/')
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-players = {}  # Use dict for multiplayer
+players = {}  # player_id = {x, y, color, health, kills, username, width, height, bodyAngle, turretAngle}
 bullets = []
 last_shot_time = {}
 crates = []
@@ -35,7 +35,7 @@ def game_loop():
         cleanup_explosions()
         
         now = time.time()
-        match_time_left = max(0, 300 - int(now - match_start_time))  # Example: 5-minute rounds
+        match_time_left = max(0, 300 - int(now - match_start_time))  # 5-minute rounds
         if match_time_left == 0:
             if not match_ended_emmited:
                 match_running = False
@@ -44,12 +44,10 @@ def game_loop():
                 winner_kills = players[winner_id]['kills'] if winner_id else 0
                 socketio.emit('match_ended', {
                     'message': 'Match has ended!',
-                    'winner': {
-                        'id': winner_id,
-                        'name': winner_name,
-                        'kills': winner_kills
+                    'winner': winner_name,
+                    'kills': winner_kills,
                     }
-                })
+                )
                 match_ended_emmited = True
         else:
             match_running = True
@@ -105,7 +103,7 @@ def update_bullets():
             bullets.pop(i)
 
             continue
-
+        # Check collision with players
         for pid, tank in players.items():
             dx = b['x'] - tank['x']
             dy = b['y'] - tank['y']
@@ -115,7 +113,7 @@ def update_bullets():
                 tank['health'] -= 5
                 explosions.append({'x': b['x'],'y': b['y'],'startTime': time.time()})  
                 shooter_id = b.get('owner')
-
+            # Award kill if tank destroyed
                 if tank['health'] <= 0:
                     shooter_id = b.get('owner')
                     if shooter_id and shooter_id in players and shooter_id != pid:
@@ -127,7 +125,7 @@ def update_bullets():
                     socketio.emit('tank_destroyed', {'tank_id': pid, 'by': shooter_id})
                 bullets.pop(i)
                 break
-
+        # Check collision with crates
         for crate in crates:
             if abs(b['x'] - crate['x']) < (CRATE_SIZE / 2 + BULLET_RADIUS) and abs(b['y'] - crate['y']) < (CRATE_SIZE / 2 + BULLET_RADIUS):
                 
@@ -141,7 +139,7 @@ def update_bullets():
                 crate['hits'] += 1
                 if crate['hits'] >= 15:
                     crates.remove(crate)
-
+                # Remove bullet after 3 bounces on crates
                 if b['crateBounces'] >= 3:
                     explosions.append({'x': b['x'],'y': b['y'],'startTime': time.time()})  # or performance.now() on client
                     bullets.pop(i)
@@ -153,8 +151,9 @@ def cleanup_explosions():
     now = time.time()
     explosions[:] = [e for e in explosions if now - e['startTime'] < 2.0]  # keep for 2 seconds
 
+# Find a safe spawn point away from crates
 def safe_spawn():
-    for _ in range(200):  # Try up to 200 times to find a safe spot
+    for _ in range(200):
         x = random.uniform(50, 1200 - 50)
         y = random.uniform(50, 600 - 50)
         safe = True
@@ -222,7 +221,7 @@ def move(data):
 @socketio.on('shoot')
 def shoot(data):
     now = time.time()
-    min_delay = 0.5  # seconds
+    min_delay = 0.3  # seconds
     last_time = last_shot_time.get(request.sid, 0)
     if now - last_time >= min_delay:   
         data['owner'] = request.sid
