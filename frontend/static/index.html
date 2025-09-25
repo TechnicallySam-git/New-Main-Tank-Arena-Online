@@ -239,16 +239,24 @@ pointer-events:none;">
             var username = document.getElementById('username').value;
             playerUsername = username;
             var password = document.getElementById('password').value;
-            playerPassword = password;
-            if(username && password) {
-                document.getElementById('menuOverlay').style.display = 'none';
-                document.getElementById('colorOverlay').style.display = 'flex';
-                ctx.fillStyle = "wheat";
-                ctx.font = "20px Arial";
-                alert('Welcome, ' + username + '!');
+            if (username && password) {
+                socket.emit('login', {username: username, password: password});
             } else {
                 alert('Please enter both username and password.');
             }
+        });
+
+        socket.on('login_response', function(data) {
+            if (data.success) {
+                playerUsername = data.username;
+                playerColor = data.color || "green";
+                document.getElementById('menuOverlay').style.display = 'none';
+                document.getElementById('colorOverlay').style.display = 'flex';
+                alert('Login successful. Welcome, ' + playerUsername + '!');
+            } else {
+                alert('Login failed: ' + data.message);
+            }
+
         });
         
         var colorForm = document.getElementById('colorForm');
@@ -346,7 +354,7 @@ pointer-events:none;">
 
         var explosion = [];
 
-        //Listen for all players and bullets data from server
+        socket.emit('get_leaderboard');
         
 
         // Receive game state updates from server
@@ -412,6 +420,7 @@ pointer-events:none;">
                 if (countdown <= 0) {
                     clearInterval(interval);
                     socket.emit('new_match');
+                    socket.emit('get_leaderboard');
                     countdownSpan.textContent = '';
                     document.getElementById('gameOverPopup').style.display = 'none';
                 }
@@ -659,24 +668,35 @@ pointer-events:none;">
         }
     }
 );
-    socket.on('leaderboard', function(leaderboard) {
-        let leaderboardArr = []
-        for (let id in leaderboard) {
-            let player =  all_players[id];
-            if (player) {
-                leaderboardArr.push({
-                    username: player.playerUsername || "Player", kills: leaderboard[id] || 0
-                });
-            }
-        }
-        leaderboardArr.sort((a,b) => b.kills - a.kills);
+    // socket.on('leaderboard', function(leaderboard) {
+    //     let leaderboardArr = []
+    //     for (let id in leaderboard) {
+    //         let player =  all_players[id];
+    //         if (player) {
+    //             leaderboardArr.push({
+    //                 username: player.playerUsername || "Player", kills: leaderboard[id] || 0
+    //             });
+    //         }
+    //     }
+    //     leaderboardArr.sort((a,b) => b.kills - a.kills);
 
+    //     let leaderboardDiv = document.getElementById('leaderboard');
+    //     leaderboardDiv.innerHTML = '';
+    //     leaderboardArr.forEach((entry,idx) => {
+    //         leaderboardDiv.innerHTML += `<div>${idx + 1}. ${entry.username}: ${entry.kills} kills</div>`;
+    //     });
+    // });
+
+    socket.on('leaderboard', function(leaderboard) {
         let leaderboardDiv = document.getElementById('leaderboard');
         leaderboardDiv.innerHTML = '';
-        leaderboardArr.forEach((entry,idx) => {
+        leaderboard.forEach((entry, idx) => {
             leaderboardDiv.innerHTML += `<div>${idx + 1}. ${entry.username}: ${entry.kills} kills</div>`;
         });
     });
+
+
+
 
     </script>
 </body>

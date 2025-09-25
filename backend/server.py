@@ -5,17 +5,20 @@ from flask import Flask, send_from_directory, request
 from flask_socketio import SocketIO, emit
 import threading, time 
 import random
+import db
+
 
 app = Flask(__name__, static_folder='../frontend/static', static_url_path='/')
 socketio = SocketIO(app, cors_allowed_origins="*")
-
+# Global Variables
 players = {}  # player_id = {x, y, color, health, kills, username, width, height, bodyAngle, turretAngle}
 bullets = []
 last_shot_time = {}
 crates = []
 explosions = []  # New list to track explosions
 chat_history = []  # List to store chat messages
-
+sid_to_player_id = {}  # Map session IDs to player IDs
+current_match_id = None
 match_start_time = time.time()
 match_running = True
 match_ended_emmited = False
@@ -40,6 +43,7 @@ def game_loop():
         match_time_left = max(0, 300 - int(now - match_start_time))  # 5-minute rounds
         if match_time_left == 0:
             if not match_ended_emmited:
+                db.end_match(current_match_id)
                 match_running = False
                 winner_id = max(players, key=lambda pid: players[pid]['kills']) if players else None
                 winner_name = players[winner_id]['playerUsername'] if winner_id else "No one"
@@ -85,6 +89,7 @@ crates = generate_crate()
 
 def update_bullets():
     global bullets, crates, players
+    score_amount = 10  # or whatever value you want
     for i in range(len(bullets)-1, -1, -1):
         b = bullets[i]
 
@@ -120,10 +125,22 @@ def update_bullets():
                     shooter_id = b.get('owner')
                     if shooter_id and shooter_id in players and shooter_id != pid:
                         players[shooter_id]['kills'] += 1
+                        user_id = sid_to_player_id.get(shooter_id)
+                        if user_id:
+                            db.update_kills(user_id, 1)
+                            db.update_match_player_kills(current_match_id, user_id, 1)
+                            db.update_score(user_id, score_amount)
+                            db.update_match_player_score(current_match_id, user_id, score_amount)
+                    victim_user_id = sid_to_player_id.get(pid)
+                    if victim_user_id:
+                        db.update_deaths(victim_user_id, 1)
+                        db.update_match_player_deaths(current_match_id, victim_user_id, 1)
+
+
+
+
                     tank['x'], tank['y'] = safe_spawn()
                     tank['health'] = tank.get('maxHealth', 100)
-                    leaderboard = {p: players[p]['kills'] for p in players}
-                    socketio.emit('leaderboard', leaderboard)
                     socketio.emit('tank_destroyed', {'tank_id': pid, 'by': shooter_id})
                 bullets.pop(i)
                 break
@@ -188,6 +205,37 @@ def connect():
     print(f"Player connected: {request.sid}")
     
 
+@socketio.on('register')
+def register(data):
+    username = data.get('username')
+    password = data.get('password')
+    if not username or not password:
+        emit('register_response', {'success': False, 'message': 'Username and password required.'})
+        return
+    if db.get_user_by_username(username):
+        emit('register_response', {'success': False, 'message': 'Username already taken.'})
+        return
+    db.add_user_to_leaderboard(username, password, username,'green')
+    emit('register_response', {'success': True, 'message': 'Registration successful. You can now log in.'})
+
+
+@socketio.on('login')
+def login(data):
+    username = data.get('username')
+    password = data.get('password')
+    user = db.verify_user_password(username,password)
+    if user:
+        sid_to_player_id[request.sid] = user['id']
+        emit('login_response', {
+            'success': True,
+            'message': 'Login successful.',
+            'username': username,
+            'color': user['tank_color'] if 'tank_color' in user else "green"
+        })
+    else:
+        emit('login_response', {'success': False, 'message': 'Invalid username or password.'})
+
+
 
 
 @socketio.on('join')
@@ -195,10 +243,14 @@ def join(data):
     print(f"Player joined: {request.sid} with data: {data}")
     x, y = safe_spawn()
     color = data.get('color', 'green')
+    username = data.get('username', 'Player')
+    user = db.get_user_by_username(username)
+    if user:
+        sid_to_player_id[request.sid] = user['id']
     players[request.sid] = {
         'x': x, 
         'y': y,
-        'playerUsername': data.get('username', 'Player'),
+        'playerUsername': username,
         'color': color,
         'health': 100,
         'maxHealth': 100,
@@ -234,14 +286,19 @@ def shoot(data):
 
 @socketio.on('new_match')
 def new_match():
-    global crates, match_start_time, match_running, bullets, explosions
+    global crates, match_start_time, match_running, bullets, explosions, current_match_id
     match_start_time = time.time()
     match_running = True
     crates = generate_crate()
+    current_match_id = db.create_match()
     for pid, player in players.items():
         player['x'], player['y'] = safe_spawn()
         player['health'] = player.get('maxHealth', 100)
         player['kills'] = 0
+        user_id = sid_to_player_id.get(pid)
+        if user_id:
+            db.add_match_player(user_id, current_match_id)
+            db.increment_matches_played(user_id)
     bullets.clear()
     explosions.clear()
 
@@ -262,6 +319,41 @@ def handle_chat(data):
     chat_entry = {'username': username, 'message': message}
     chat_history.append(chat_entry)
     emit('chat_message', {'username': username, 'message': message}, broadcast=True)
+
+@socketio.on('get_leaderboard')
+def handle_get_leaderboard():
+    leaderboard = db.get_leaderboard()
+    emit('leaderboard', [
+        {
+            'username': row['username'], 
+            'kills': row['total_kills'],
+            'score': row['total_score'],
+            'matches': row['matches_played']
+        }
+        for row in leaderboard
+    ])
+    
+
+@socketio.on('get_user_match_history')
+def handle_get_user_match_history():
+    user_id = sid_to_player_id.get(request.sid)
+    if not user_id:
+        emit('match_history', [])
+        return
+    history = db.get_user_match_history(user_id)
+    emit('match_history', [
+        {
+            'match_id': row['match_id'],
+            'kills': row['kills'],
+            'deaths': row['deaths'],
+            'score': row['score'],
+            'start_time': row['start_time'],
+            'end_time': row['end_time']
+        }
+        for row in history
+    ])
+
+
 
 
 @socketio.on('force_end') # For testing purposes do not use if ur not admin!!!!
