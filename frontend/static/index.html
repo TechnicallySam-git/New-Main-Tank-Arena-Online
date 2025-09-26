@@ -110,6 +110,7 @@
                 <label for="password">Password:</label>
                 <input type="password" id="password" placeholder="Enter your password" autocomplete="current-password">
                 <button id="loginButton" style="margin-top: 10px;">Login</button>
+                <button id="registerButton" type="button" style="margin-top: 10px;">Register</button>
             </form>
         </div>
     </div>
@@ -245,6 +246,21 @@ pointer-events:none;">
                 alert('Please enter both username and password.');
             }
         });
+
+    document.getElementById('registerButton').addEventListener('click', function() {
+        var username = document.getElementById('username').value;
+        var password = document.getElementById('password').value;
+        var color = document.getElementById('color').value;
+        if (username && password && color) {
+            socket.emit('register', {username: username, password: password, color: color});
+        } else {
+            alert('Please enter username, password, and pick a color.');
+        }
+    });
+
+    socket.on('register_response', function(data) {
+        alert(data.message);
+    });
 
         socket.on('login_response', function(data) {
             if (data.success) {

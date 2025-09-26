@@ -1,33 +1,33 @@
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username VARCHAR(50) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    display_name VARCHAR(100) NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS matches (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    end_time TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS match_players (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    match_id INTEGER NOT NULL,
-    kills INTEGER DEFAULT 0,
-    deaths INTEGER DEFAULT 0,
-    score INTEGER DEFAULT 0,
-    FOREIGN KEY (user_id) REFERENCES users(id),
-    FOREIGN KEY (match_id) REFERENCES matches(id)
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    color TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS leaderboard (
     user_id INTEGER PRIMARY KEY,
-    total_kills INTEGER DEFAULT 0,
-    total_deaths INTEGER DEFAULT 0,
-    total_score INTEGER DEFAULT 0,
+    kills INTEGER DEFAULT 0,
+    deaths INTEGER DEFAULT 0,
+    score INTEGER DEFAULT 0,
     matches_played INTEGER DEFAULT 0,
-    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id)
+    FOREIGN KEY(user_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS matches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    start_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    end_time DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS match_players (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    match_id INTEGER,
+    user_id INTEGER,
+    kills INTEGER DEFAULT 0,
+    deaths INTEGER DEFAULT 0,
+    score INTEGER DEFAULT 0,
+    FOREIGN KEY(match_id) REFERENCES matches(id),
+    FOREIGN KEY(user_id) REFERENCES users(id)
 );

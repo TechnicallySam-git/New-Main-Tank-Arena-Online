@@ -209,13 +209,14 @@ def connect():
 def register(data):
     username = data.get('username')
     password = data.get('password')
-    if not username or not password:
-        emit('register_response', {'success': False, 'message': 'Username and password required.'})
+    color = data.get('color', '#00ff00')  # default to green if not provided
+    if not username or not password or not color:
+        emit('register_response', {'success': False, 'message': 'Username, password, and color required.'})
         return
     if db.get_user_by_username(username):
         emit('register_response', {'success': False, 'message': 'Username already taken.'})
         return
-    db.add_user_to_leaderboard(username, password, username,'green')
+    db.add_user_to_leaderboard(username, password, username, color)
     emit('register_response', {'success': True, 'message': 'Registration successful. You can now log in.'})
 
 
@@ -230,7 +231,7 @@ def login(data):
             'success': True,
             'message': 'Login successful.',
             'username': username,
-            'color': user['tank_color'] if 'tank_color' in user else "green"
+            'color': user['color'] if 'color' in user else "green"
         })
     else:
         emit('login_response', {'success': False, 'message': 'Invalid username or password.'})
@@ -326,8 +327,8 @@ def handle_get_leaderboard():
     emit('leaderboard', [
         {
             'username': row['username'], 
-            'kills': row['total_kills'],
-            'score': row['total_score'],
+            'kills': row['kills'],
+            'score': row['score'],
             'matches': row['matches_played']
         }
         for row in leaderboard
